@@ -22,6 +22,8 @@ canvas{display:block}
 @keyframes pop{0%{opacity:0;transform:translateX(-50%) scale(.2) rotate(-9deg)}12%{opacity:1;transform:translateX(-50%) scale(1.25) rotate(-4deg)}22%{transform:translateX(-50%) scale(1) rotate(-3deg)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1.1) rotate(-3deg)}}
 #omdb-popup{position:absolute;top:60px;right:15px;width:160px;border-radius:14px;border:3px solid #ffd24a;box-shadow:0 0 18px 4px #ffb300,0 8px 20px #000a;opacity:0;transform:scale(.5);transform-origin:top right;pointer-events:none;transition:opacity .35s,transform .45s cubic-bezier(.2,1.6,.4,1);z-index:5}
 #omdb-popup.show{opacity:1;transform:scale(1)}
+#over .btns{display:flex;gap:10px;margin-top:6px}#over button.sec{background:#fff}#over .f{font-size:12px;opacity:.7}
+#shotv{position:absolute;inset:0;background:#000e;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:9}#shotv img{max-height:68%;max-width:86%;border-radius:10px;border:2px solid var(--sun)}#shotv p{font-size:13px}
 #flash{inset:0;background:radial-gradient(circle,#f003,#f00c);opacity:0;transition:opacity .35s}
 #start{bottom:14%;left:0;right:0;text-align:center;font-size:19px;font-weight:900;color:var(--sun);text-shadow:0 2px 6px #000;animation:bl 1s infinite}
 @keyframes bl{50%{opacity:.25}}
@@ -36,7 +38,8 @@ canvas{display:block}
 <img id="omdb-popup" alt="Over My Dead Body">
 <div id="flash" class="ui"></div>
 <div id="start" class="ui">點擊或滑動螢幕 —— 突破黑箱！</div>
-<div id="over"><h2>任務結束</h2><p>機密文件 <b id="o1">0</b> 份　突破 <b id="o2">0</b> 公尺</p><p>撞飛障礙 <b id="o3">0</b> 次　總分 <b id="o4">0</b></p><div id="ttl"></div><button id="again">再次挑戰</button></div>
+<div id="over"><h2>任務結束</h2><p>機密文件 <b id="o1">0</b> 份　突破 <b id="o2">0</b> 公尺</p><p>撞飛障礙 <b id="o3">0</b> 次　總分 <b id="o4">0</b></p><div id="ttl"></div><p class="f">計分：機密文件 ×10 ＋ 距離（公尺）＋ 撞飛障礙 ×50</p><div class="btns"><button id="again">再次挑戰</button><button id="shot" class="sec">📸 截圖分享</button></div>
+<div id="shotv"><img id="shotimg" alt="分數截圖"><p id="shhint">長按圖片可儲存，或按下方分享</p><div class="btns"><button id="shbtn">分享</button><button id="shclose" class="sec">關閉</button></div></div></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -153,6 +156,7 @@ box:()=>{noise(.8,600,'lowpass',.9);tone(90,30,.8,'sine',.9);noise(.4,3000,'high
 chord:()=>{if(!AC)return;const ws=AC.createWaveShaper(),c=new Float32Array(256);for(let i=0;i<256;i++)c[i]=Math.tanh((i/128-1)*4);ws.curve=c;const gn=AC.createGain(),t=AC.currentTime;gn.gain.setValueAtTime(.3,t);gn.gain.exponentialRampToValueAtTime(.001,t+1.3);ws.connect(gn);gn.connect(mg);[82.4,123.5,164.8,247].forEach(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(ws);o.start(t);o.stop(t+1.3)});tone(70,28,.6,'sine',.8)}};
 function say(){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance('Over my dead body!');u.lang='en-US';u.rate=.85;u.pitch=.5;u.volume=1;speechSynthesis.speak(u)}catch(e){}}
 /* state */
+let lastS=null,wantSnap=false,shBlob=null;const snapCv=document.createElement('canvas');
 let st='intro',lane=0,py=0,vy=0,slide=0,inv=0,power=0,energy=0,cur=0,lives=3,docs=0,dist=0,smash=0,speed=0,shake=0,combo=0,comboT=0,tm=0,sp=0,tog=0,shT=0,enterT=0,cx=0,cy=6.5;const GAP=30;
 const NM=['黃頭巾','綠背心','糾察隊長'];
 function renderLives(){$('lv').innerHTML=NM.map((n,i)=>'<span class="'+(i<3-lives?'x':i==3-lives?'on':'')+'">'+(i<3-lives?'🖤':'❤️')+n+'</span>').join('')}
@@ -166,10 +170,47 @@ function redFlash(){const f=$('flash');f.style.transition='none';f.style.opacity
 function hurt(){sfx.hit();shake=1;redFlash();combo=0;lives--;renderLives();flyOff(models[cur]);if(lives<=0){st='over';setTimeout(showOver,1000);return}cur++;enter(models[cur]);inv=2.5}
 function startPower(){power=5;energy=100;sfx.chord();showOmdb();omdbAudio.muted=false;omdbAudio.currentTime=0;{const pr=omdbAudio.play();if(pr&&pr.catch)pr.catch(()=>say())}omdbAudio.onerror=()=>say();shake=.5;const b=$('ban');b.classList.remove('on');void b.offsetWidth;b.classList.add('on');models[cur].visible=false;uncle.visible=true;aura.visible=true}
 function endPower(){power=0;energy=0;uncle.visible=false;models[cur].visible=true;inv=1;aura.visible=enterT>0}
-function showOver(){const sc=docs*10+Math.floor(dist/2)+smash*50;$('o1').textContent=docs;$('o2').textContent=Math.floor(dist/2);$('o3').textContent=smash;$('o4').textContent=sc;$('ttl').textContent=sc>=1500?'街頭傳奇':sc>=600?'民主守護者':'破箱先鋒';$('over').style.display='flex'}
+function showOver(){const sc=docs*10+Math.floor(dist/2)+smash*50;$('o1').textContent=docs;$('o2').textContent=Math.floor(dist/2);$('o3').textContent=smash;$('o4').textContent=sc;$('ttl').textContent=sc>=1500?'街頭傳奇':sc>=600?'民主守護者':'破箱先鋒';lastS={d:docs,m:Math.floor(dist/2),s:smash,sc,t:$('ttl').textContent};wantSnap=true;$('over').style.display='flex'}
 function startGame(){initAudio();st='play';shT=0;sfx.box();$('start').style.display='none';$('hud').style.display='block';P.visible=true;
 pieces.forEach(p=>{const v=p.position.clone();if(v.length()<.1)v.set(Math.random()-.5,.5,Math.random()-.2);v.normalize().multiplyScalar(8+Math.random()*9);v.y+=6;p.userData.v=v;p.userData.r=new THREE.Vector3(Math.random()*8-4,Math.random()*8-4,Math.random()*8-4)})}
 $('again').addEventListener('click',()=>{initAudio();reset();st='play';shT=1.6;$('over').style.display='none';P.visible=true});
+
+function sunflower(x,cx,cy,r){x.save();x.strokeStyle='#2f7a2f';x.lineWidth=r*.12;x.beginPath();x.moveTo(cx,cy);x.quadraticCurveTo(cx+r*.25,cy+r*2,cx,cy+r*3.4);x.stroke();
+x.fillStyle='#3a9a3a';x.beginPath();x.ellipse(cx+r*.55,cy+r*1.7,r*.5,r*.2,-.6,0,7);x.fill();x.beginPath();x.ellipse(cx-r*.5,cy+r*2.2,r*.45,r*.18,.6,0,7);x.fill();
+[['#ffb300',1,0],['#ffd400',.82,.2]].forEach(l=>{for(let i=0;i<16;i++){x.save();x.translate(cx,cy);x.rotate(i/16*Math.PI*2+l[2]);x.fillStyle=l[0];x.beginPath();x.ellipse(r*.72*l[1]+r*.12,0,r*.36*l[1],r*.15*l[1],0,0,7);x.fill();x.restore()}});
+x.fillStyle='#3d2208';x.beginPath();x.arc(cx,cy,r*.44,0,7);x.fill();x.fillStyle='#5a3410';x.beginPath();x.arc(cx,cy,r*.38,0,7);x.fill();
+x.fillStyle='#9a6a2a';for(let n=1;n<46;n++){const a=n*2.4,rr=r*.36*Math.sqrt(n/46);x.beginPath();x.arc(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr,r*.026,0,7);x.fill()}x.restore()}
+function drawScene(x,W){
+let g=x.createLinearGradient(0,0,0,470);g.addColorStop(0,'#070b1c');g.addColorStop(1,'#26356e');x.fillStyle=g;x.fillRect(0,0,W,470);
+x.fillStyle='#fff';for(let i=0;i<50;i++){x.globalAlpha=.3+Math.random()*.6;x.fillRect((i*137)%W,(i*71)%260,2,2)}x.globalAlpha=1;
+g=x.createRadialGradient(360,380,20,360,380,330);g.addColorStop(0,'rgba(255,230,150,.55)');g.addColorStop(1,'rgba(255,230,150,0)');x.fillStyle=g;x.fillRect(0,100,W,420);
+const B='#e8d6a0',D='#cbb77c',gy=470;
+x.fillStyle=B;x.fillRect(60,380,150,90);x.fillRect(510,380,150,90);x.fillRect(200,330,320,140);
+x.fillStyle=D;x.fillRect(180,314,360,18);x.fillRect(40,372,180,10);x.fillRect(500,372,180,10);
+x.fillStyle=B;x.fillRect(300,285,120,32);
+x.fillStyle='#b02020';x.beginPath();x.arc(360,288,66,Math.PI,0);x.fill();x.fillStyle='#d0b060';x.fillRect(356,205,8,24);x.beginPath();x.moveTo(350,224);x.lineTo(360,205);x.lineTo(370,224);x.fill();
+x.fillStyle='#f6ecd0';for(let i=0;i<8;i++)x.fillRect(214+i*40,334,16,136);
+x.fillStyle='#ffd878';for(let i=0;i<4;i++){x.fillRect(80+i*34,400,16,22);x.fillRect(536+i*28,400,16,22)}
+x.fillStyle='#d8c48c';x.fillRect(170,470,380,10);x.fillStyle='#bfab72';x.fillRect(150,480,420,10);
+g=x.createLinearGradient(0,490,0,640);g.addColorStop(0,'#1a1d28');g.addColorStop(1,'#0a0f24');x.fillStyle=g;x.fillRect(0,490,W,150);
+sunflower(x,95,440,92);sunflower(x,628,425,102);sunflower(x,205,500,48);sunflower(x,520,505,54);
+g=x.createLinearGradient(0,540,0,650);g.addColorStop(0,'rgba(10,15,36,0)');g.addColorStop(1,'#0a0f24');x.fillStyle=g;x.fillRect(0,540,W,110)}
+function drawCard(){const W=720,H=1000,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d'),S=lastS||{d:0,m:0,s:0,sc:0,t:''};
+x.fillStyle='#0a0f24';x.fillRect(0,0,W,H);drawScene(x,W);
+x.textAlign='center';x.textBaseline='middle';x.lineJoin='round';
+function T(t,px,py,sz,col,al){x.font='900 '+sz+'px '+FONT;x.textAlign=al||'center';x.lineWidth=sz/7;x.strokeStyle='#000';x.strokeText(t,px,py);x.fillStyle=col;x.fillText(t,px,py)}
+T('🌻 突破黑箱：挺進立法院',W/2,60,44,'#ffd400');
+x.save();x.translate(W/2,568);x.rotate(-.06);T(S.t,0,0,92,'#ff5a4a');x.restore();
+const rows=[['機密文件',S.d+' 份'],['突破距離',S.m+' 公尺'],['撞飛障礙',S.s+' 次']];
+rows.forEach((r,i)=>{const y=640+i*64;T(r[0],110,y,34,'#fff','left');T(r[1],W-110,y,40,'#ffd400','right');x.fillStyle='#ffffff30';x.fillRect(100,y+34,W-200,2)});
+T('總分',110,845,44,'#fff','left');T(String(S.sc),W-110,845,76,'#ffd400','right');
+T('你能超越我的紀錄嗎？',W/2,950,32,'#aab4d4');return c}
+$('shot').addEventListener('click',()=>{const c=drawCard();$('shotimg').src=c.toDataURL('image/png');shBlob=null;c.toBlob(b=>{shBlob=b},'image/png');$('shhint').textContent='長按圖片可儲存，或按下方分享';$('shotv').style.display='flex'});
+$('shclose').addEventListener('click',()=>{$('shotv').style.display='none'});
+$('shbtn').addEventListener('click',async()=>{const tx='我在「突破黑箱：挺進立法院」拿到 '+(lastS?lastS.sc:0)+' 分，稱號「'+(lastS?lastS.t:'')+'」！';
+try{if(shBlob){const f=new File([shBlob],'omdb-score.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'突破黑箱：挺進立法院',text:tx});return}}
+if(navigator.share){await navigator.share({title:'突破黑箱：挺進立法院',text:tx});return}}catch(e){if(e&&e.name==='AbortError')return}
+$('shhint').textContent='此裝置無法直接分享，請長按圖片儲存後再傳給朋友'});
 /* input */
 function act(a){if(st==='intro'){startGame();return}if(st!=='play')return;initAudio();
 if(a==='L'&&lane>-1)lane--;else if(a==='R'&&lane<1)lane++;else if(a==='U'&&py<.05){vy=17;sfx.jump()}else if(a==='D'){if(py>.05)vy=-32;slide=.8;sfx.slide()}}
@@ -198,7 +239,7 @@ if(inv>0){inv-=dt;if(inv<=0)setOp(cm(),1)}
 if(comboT>0){comboT-=dt;if(comboT<=0)combo=0}
 P.position.x+=(lane*3-P.position.x)*Math.min(1,dt*12);
 if(py>0||vy>0){vy-=45*dt;py+=vy*dt;if(py<=0){py=0;vy=0}}
-if(slide>0)slide-=dt;P.position.y=py;P.rotation.z=(P.position.x-lane*3)*.06;
+if(slide>0)slide-=dt;P.position.y=py;
 // docs
 for(let i=dc.length-1;i>=0;i--){const m=dc[i];m.position.z+=d;m.rotation.y+=dt*3;
 if(power>0&&m.position.z>-75){const k=Math.min(1,dt*7);m.position.x+=(P.position.x-m.position.x)*k;m.position.y+=(py+1.6-m.position.y)*k;m.position.z+=(0-m.position.z)*k*.6}
@@ -219,11 +260,11 @@ enterT=Math.max(0,enterT-dt);aura.visible=power>0||enterT>0;if(aura.visible){aur
 $('sd').textContent=docs;$('sm').textContent=Math.floor(dist/2);$('eb').style.width=energy+'%';
 // camera
 const k0=st==='intro'?0:Math.min(1,shT/1.4),k=k0*k0*(3-2*k0);
-cx+=(P.position.x*.4-cx)*Math.min(1,dt*5);cy+=(6.5+py*.25-cy)*Math.min(1,dt*5);
+cx=0;cy+=(6.5+py*.25-cy)*Math.min(1,dt*5);
 shake=Math.max(0,shake-dt*2.2);
 V.set(cx,cy,11);camera.position.lerpVectors(new THREE.Vector3(0,5,13),V,k);
 camera.position.x+=(Math.random()-.5)*shake*1.4;camera.position.y+=(Math.random()-.5)*shake*1.4;
 camera.lookAt(V.lerpVectors(T0,T1,k));}
-function loop(){requestAnimationFrame(loop);update(Math.min(clock.getDelta(),.05));renderer.render(scene,camera)}
+function loop(){requestAnimationFrame(loop);update(Math.min(clock.getDelta(),.05));renderer.render(scene,camera);if(wantSnap){wantSnap=false;const c=renderer.domElement;snapCv.width=c.width;snapCv.height=c.height;snapCv.getContext('2d').drawImage(c,0,0)}}
 reset();loop();
 </script></body></html>
